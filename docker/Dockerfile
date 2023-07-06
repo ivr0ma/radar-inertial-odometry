@@ -25,7 +25,7 @@ RUN mkdir -p /home/${USER}/catkin_ws/src && \
     chown -R ${UID}:${GID} /home/${USER}
 
 # Copy context
-COPY ./ /home/${USER}/catkin_ws/src
+# COPY ./ /home/${USER}/catkin_ws/src
 
 WORKDIR /home/${USER}
 USER ${UID}:${GID}

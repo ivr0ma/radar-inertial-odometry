@@ -6,4 +6,5 @@ docker run -it -d --rm \
     --env="DISPLAY=$DISPLAY" \
     --privileged \
     --name radar \
+    -v $(realpath $docker_dir)/../../:/home/ivr0ma/catkin_ws/src:rw \
     my-ros:latest
