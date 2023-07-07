@@ -1,4 +1,7 @@
-FROM ros:melodic-ros-base-bionic
+FROM tiryoh/ros-melodic-desktop
+# ros:melodic-ros-base-bionic
+# tiryoh/ros-melodic-desktop
+# osrf/ros:melodic-desktop-full-stretch
 
 # ENV DEBIAN_FRONTEND noninteractive
 
@@ -17,12 +20,18 @@ RUN useradd -m ${USER} --uid=${UID} && \
     usermod -a -G sudo ${USER}
 
 # Install dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-melodic-robot=1.4.1-0* && \
-    rm -rf /var/lib/apt/lists/*
+# RUN apt-get update && apt-get install -y --no-install-recommends \
+#     ros-melodic-robot=1.4.1-0* && \
+#     rm -rf /var/lib/apt/lists/*
 
 # Install additional dependencies
 RUN apt-get update && apt-get install -q -y \
+    vim \
+    git \
+    tmux \
+    python3-pip \
+    gcc \
+    g++ \
     gfortran \
     libeigen3-dev \
     ros-melodic-turtlebot3 \ 
@@ -44,7 +53,8 @@ RUN apt-get update && apt-get install -q -y \
     ros-melodic-pcl-ros \
     libgoogle-glog-dev \
     ros-melodic-catkin \
-    python3-catkin-tools && \
+    python3-catkin-tools \
+    ros-melodic-octomap-rviz-plugins && \
     rm -rf /var/lib/apt/lists/*
 
 # Add workspace

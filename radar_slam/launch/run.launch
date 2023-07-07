@@ -26,7 +26,7 @@
 
     <arg name="project" default="radar_slam"/>
     <node pkg="$(arg project)" type="$(arg project)_imuPreintegration"   name="$(arg project)_imuPreintegration"    output="screen" 	respawn="true"/>
-    <node pkg = "$(arg project)" type = "$(arg project)_newndt" name = "$(arg project)_newndt" output="screen"  respawn="true"/>
+    <node pkg = "$(arg project)" type = "$(arg project)_ndt" name = "$(arg project)_ndt" output="screen"  respawn="true"/>
     <node pkg="rviz" type="rviz" name="$(arg project)_rviz" args="-d $(find radar_slam)/launch/rviz/config/rviz.rviz" />
 
 
