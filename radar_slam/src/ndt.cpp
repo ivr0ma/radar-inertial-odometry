@@ -10,6 +10,7 @@
 #include <nav_msgs/Path.h>
 #include <std_msgs/Bool.h>
 #include <std_msgs/Float32.h>
+#include <std_srvs/Empty.h>
 
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
@@ -63,6 +64,8 @@ public:
     ros::NodeHandle pnh_;
     ros::Subscriber points_sub_;
     ros::Subscriber imu_sub_;
+
+    ros::ServiceServer save_map_service;
 
     ros::Subscriber sub_twist_;
     bool imu_init_flag = false;
@@ -138,6 +141,8 @@ public:
 
         ndt_map_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("/ndt_map", 1);
         current_pose_pub_ = nh_.advertise<nav_msgs::Odometry>("/current_pose", 1);
+        save_map_service = nh_.advertiseService("/save_map", &NDT::save_map_callback, this);
+        
         // Default values
         nh_.param("max_iter", max_iter_, 50);   
         nh_.param("step_size", step_size_, 0.1);  
@@ -182,6 +187,16 @@ public:
         pubPath = nh_.advertise<nav_msgs::Path>("mapping/path", 1);
     }
 
+    bool save_map_callback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response) {
+        pcl::io::savePCDFileASCII("../catkin_ws/src/radar-inertial-odometry/test_pcd.pcd", map_);
+        std::cerr << "Saved " << map_.size () << " data points to test_pcd.pcd." << std::endl;
+
+        // for (const auto& point: map_)
+        //     std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
+        
+        return true;
+    }
+    
     void velCallBack(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &velmsgs)
     {
         std::lock_guard<std::mutex> lock1(velLock);
@@ -399,6 +414,12 @@ public:
         tfs.header.frame_id = "map";
         tfs.header.stamp = timeLaserInfoStamp;
         tfs.child_frame_id = "radar"; 
+
+        // tf2_ros::Buffer tfBuffer;    
+        // tf2_ros::TransformListener tfListener(tfBuffer);
+
+        // while(!tfBuffer.canTransform(tfs.child_frame_id, ros::Time(), ros::Duration(1.0)));
+
         tfs.transform.translation.x = current_pose_.x;
         tfs.transform.translation.y = current_pose_.y;
         tfs.transform.translation.z = current_pose_.z;
