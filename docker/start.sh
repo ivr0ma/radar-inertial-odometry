@@ -9,5 +9,6 @@ docker run -it --rm -d \
     --privileged \
     --name radar \
     --net "host" \
+    -v /tmp/.X11-unix:/tmp/.X11-unix:rw \
     -v $(realpath $docker_dir)/../../:/home/ivr0ma/catkin_ws/src:rw \
     my-ros:latest
