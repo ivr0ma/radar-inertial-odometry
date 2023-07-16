@@ -1,31 +1,30 @@
 {
-	"dockerFile": "Dockerfile",
-	"runArgs": [
-		"--network=host",
-		"--cap-add=SYS_PTRACE",
-		"--security-opt=seccomp:unconfined",
-		"--security-opt=apparmor:unconfined",
-		"--volume=/tmp/.X11-unix:/tmp/.X11-unix",
-		"--volume=/mnt/wslg:/mnt/wslg",
-		"--ipc=host"
-	],
-	"containerEnv": {
-		"DISPLAY": "${localEnv:DISPLAY}", // Needed for GUI try ":0" for windows
-		"WAYLAND_DISPLAY": "${localEnv:WAYLAND_DISPLAY}",
-		"XDG_RUNTIME_DIR": "${localEnv:XDG_RUNTIME_DIR}",
-		"PULSE_SERVER": "${localEnv:PULSE_SERVER}",
-		"LIBGL_ALWAYS_SOFTWARE": "1" // Needed for software rendering of opengl
-	},
-	"customizations": {
-		"vscode": {
-			"extensions": [
-				"ms-vscode.cpptools",
+	"name": "ROS",
+    "privileged": true,
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+    "workspaceFolder": "/home/ivr0ma/catkin_ws/src/",
+    "workspaceMount": "source=${localWorkspaceFolder}/../,target=/home/ivr0ma/catkin_ws/src,type=bind",
+    "customizations": {
+        "vscode": {
+            "extensions":[
+                "ms-vscode.cpptools",
                 "ms-vscode.cpptools-themes",
                 "twxs.cmake",
                 "donjayamanne.python-extension-pack",
                 "eamodio.gitlens",
                 "ms-iot.vscode-ros"
-			]
-		}
-	}
+            ]
+        }
+    },
+    "containerEnv": {
+        "DISPLAY": "unix:0",
+        "ROS_AUTOMATIC_DISCOVERY_RANGE": "LOCALHOST",
+        "ROS_DOMAIN_ID": "42"
+    },
+    "runArgs": [
+        "--net=host",
+        "-e", "DISPLAY=${env:DISPLAY}"
+    ]
 }
