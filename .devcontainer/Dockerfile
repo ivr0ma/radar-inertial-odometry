@@ -26,6 +26,12 @@ RUN useradd -m ${USER} --uid=${UID} && \
 
 # Install additional dependencies
 RUN apt-get update && apt-get install -q -y \
+    vim \
+    git \
+    tmux \
+    python3-pip \
+    gcc \
+    g++ \
     gfortran \
     libeigen3-dev \
     ros-melodic-turtlebot3 \ 
@@ -70,10 +76,5 @@ RUN mkdir -p /home/${USER}/catkin_ws/src && \
 # Copy context
 #COPY ./ /home/${USER}/catkin_ws/src
 
-ARG WORKSPACE
-
 WORKDIR /home/${USER}
-
-RUN echo "source /opt/ros/melodic/setup.bash" >> /home/${USER}/.bashrc
-
 USER ${UID}:${GID}
