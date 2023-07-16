@@ -26,12 +26,6 @@ RUN useradd -m ${USER} --uid=${UID} && \
 
 # Install additional dependencies
 RUN apt-get update && apt-get install -q -y \
-    vim \
-    git \
-    tmux \
-    python3-pip \
-    gcc \
-    g++ \
     gfortran \
     libeigen3-dev \
     ros-melodic-turtlebot3 \ 
@@ -57,6 +51,18 @@ RUN apt-get update && apt-get install -q -y \
     ros-melodic-octomap-rviz-plugins && \
     rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -q -y \
+    vim \
+    git \
+    tmux \
+    python3-pip \
+    gcc \
+    g++ \
+    gdb \
+    openssh-client
+
+RUN echo "set auto-load safe-path /" >> /root/.gdbinit
+
 # Add workspace
 RUN mkdir -p /home/${USER}/catkin_ws/src && \
     chown -R ${UID}:${GID} /home/${USER}
@@ -65,4 +71,7 @@ RUN mkdir -p /home/${USER}/catkin_ws/src && \
 #COPY ./ /home/${USER}/catkin_ws/src
 
 WORKDIR /home/${USER}
+
+RUN echo "source /opt/ros/melodic/setup.bash" >> /home/${USER}/.bashrc
+
 USER ${UID}:${GID}
