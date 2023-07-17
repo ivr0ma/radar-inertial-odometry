@@ -2,8 +2,16 @@
 
 <launch>
 
+    <arg name="mode"/>
+    <arg name="do_plot" default="True"/>
+    <arg name="config" default="params_demo_dataset"/>
+    <arg name="calibration" default="$(find radar_ego_velocity_estimator)/config/calib_rio"/>
+    <arg name="topic_twist" default="/reve/twist"/> <!-- Reset the radar speed -->
+    <arg name="run_without_trigger" default="False"/>
+    <arg name="use_odr" default="False"/>
+
     <node name="radar_ego_velocity_estimator" pkg="radar_ego_velocity_estimator" type="radar_ego_velocity_estimation_$(arg mode)_node"
-          output="screen" launch-prefix="bash -c 'sleep 1; $0 $@' ">>
+          output="screen" launch-prefix="bash -c 'sleep 1; $0 $@' ">
         <rosparam file="$(find radar_ego_velocity_estimator)/config/$(arg config).yaml" command="load"/>
         <rosparam file="$(arg calibration).yaml" command="load" ns=""/>
         <param name="run_without_trigger" value="$(arg run_without_trigger)" type="bool"/>
