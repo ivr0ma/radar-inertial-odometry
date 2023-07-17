@@ -2,9 +2,12 @@
 	"name": "ROS",
     "privileged": true,
     "build": {
-        "dockerfile": "Dockerfile"
+        "dockerfile": "Dockerfile",
+        "args": {
+			"WORKSPACE": "${containerWorkspaceFolder}"
+		}
     },
-    "workspaceFolder": "/home/ivr0ma/catkin_ws/src/",
+    "workspaceFolder": "/home/ivr0ma/catkin_ws/src/radar-inertial-odometry",
     "workspaceMount": "source=${localWorkspaceFolder}/../,target=/home/ivr0ma/catkin_ws/src,type=bind",
     "customizations": {
         "vscode": {
@@ -18,13 +21,23 @@
             ]
         }
     },
-    "containerEnv": {
-        "DISPLAY": "unix:0",
-        "ROS_AUTOMATIC_DISCOVERY_RANGE": "LOCALHOST",
-        "ROS_DOMAIN_ID": "42"
-    },
     "runArgs": [
-        "--net=host",
-        "-e", "DISPLAY=${env:DISPLAY}"
-    ]
+        "--name=radar",
+		"--network=host",
+		"--cap-add=SYS_PTRACE",
+		"--security-opt=seccomp:unconfined",
+		"--security-opt=apparmor:unconfined",
+		"--volume=/tmp/.X11-unix:/tmp/.X11-unix",
+		"--volume=/mnt/wslg:/mnt/wslg",
+		"--ipc=host"
+		// uncomment to use intel iGPU
+		// "--device=/dev/dri"
+	],
+	"containerEnv": {
+		"DISPLAY": "${localEnv:DISPLAY}", // Needed for GUI try ":0" for windows
+		"WAYLAND_DISPLAY": "${localEnv:WAYLAND_DISPLAY}",
+		"XDG_RUNTIME_DIR": "${localEnv:XDG_RUNTIME_DIR}",
+		"PULSE_SERVER": "${localEnv:PULSE_SERVER}",
+		"LIBGL_ALWAYS_SOFTWARE": "1" // Needed for software rendering of opengl
+	}
 }

@@ -73,6 +73,11 @@ RUN echo "set auto-load safe-path /" >> /root/.gdbinit
 RUN mkdir -p /home/${USER}/catkin_ws/src && \
     chown -R ${UID}:${GID} /home/${USER}
 
+ARG WORKSPACE
+RUN echo "if [ -f ${WORKSPACE}/install/setup.bash ]; then source ${WORKSPACE}/install/setup.bash; fi" >> /home/${USER}/.bashrc
+
+RUN echo 'source /opt/ros/melodic/setup.bash' >> /root/.bashrc
+
 # Copy context
 #COPY ./ /home/${USER}/catkin_ws/src
 
