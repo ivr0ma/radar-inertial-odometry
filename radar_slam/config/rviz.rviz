@@ -99,7 +99,7 @@ Visualization Manager:
       Size (Pixels): 3
       Size (m): 0.30000001192092896
       Style: Flat Squares
-      Topic: /pcl2_visualize
+      Topic: /pcl2_visualize_2
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
