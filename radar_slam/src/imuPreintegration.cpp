@@ -113,9 +113,9 @@ public:
         if (reveIsValid(*velmsgs))
         {
             velQue.push_back(*velmsgs);
-            auto vxx = velmsgs->twist.twist.linear.y;
-            auto vyy = velmsgs->twist.twist.linear.x;
-            auto vzz = velmsgs->twist.twist.linear.z;
+            //auto vxx = velmsgs->twist.twist.linear.y;
+            //auto vyy = velmsgs->twist.twist.linear.x;
+            //auto vzz = velmsgs->twist.twist.linear.z;
         }
     }
 
@@ -422,7 +422,9 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "roboat_loam");
     IMUPreintegration ImuP;
     ROS_INFO("\033[1;32m----> Optimization Started.\033[0m");
-    // 使用多线程触发 给此进程开辟四个线程进行回调 利用并发的方式提高速度
+    // Use multithreaded startup to open up four 
+    // threads for this process to make callbacks 
+    // and use parallelism to increase speed
     ros::MultiThreadedSpinner spinner(4);
     spinner.spin();
     return 0;

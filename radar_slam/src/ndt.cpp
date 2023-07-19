@@ -80,6 +80,41 @@ public:
 
     pcl::PointCloud<pcl::PointXYZI> map_;
     pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_filter_;
+
+
+
+    // template <typename PointSource, typename PointTarget, typename Scalar>
+    // inline void
+    // pcl::Registration<PointSource, PointTarget, Scalar>::align(PointCloudSource& output,
+    //                                                     const Matrix4& guess)
+    // {
+    //     PointCloudSourceConstPtr input_org;
+    //     PointCloudSourcePtr input_replaced(new PointCloudSource);
+
+    //     input_org = getInputSource();
+    //     transformPointCloud(*input_org, *input_replaced, guess);
+
+    //     setInputSource(input_replaced);
+    //     Registration<PointSource, PointTarget>::align(output);
+
+    //     final_transformation_ = final_transformation_ * guess;
+
+    //     // Re-orthogonalization of Rotation Matrix
+    //     // "3D rotations : parameter computation and Lie-Algebra based optimization", 4.5.
+    //     Eigen::JacobiSVD<Eigen::Matrix3f> svd(final_transformation_.block<3, 3>(0, 0),
+    //     Eigen::ComputeFullU | Eigen::ComputeFullV);
+    //     const Eigen::Matrix3f& U = svd.matrixU();
+    //     const Eigen::Matrix3f& V = svd.matrixV();
+    //     Eigen::Matrix3f S = Eigen::Matrix3f::Identity();
+    //     S(2, 2) = (U * V).determinant();
+    //     final_transformation_.block<3, 3>(0, 0) = U * S * V.transpose();
+    //     final_transformation_.block<1, 3>(3, 0).setZero();
+    //     final_transformation_(3, 3) = 1.0f;
+
+    //     setInputSource(input_org);
+    // }
+
+
     pcl::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI> ndt;
 
     int max_iter_;     // Maximum iterations
@@ -158,7 +193,7 @@ public:
         pnh_.param<std::string>("map_frame", map_frame_, std::string("map"));
 
         initial_scan_loaded = 0;
-        min_add_scan_shift_ = 2.0; ///  原 1.0
+        min_add_scan_shift_ = 2.0; ///  original 1.0
         _tf_x = 0.0, _tf_y = 0.0, _tf_z = 0.0, _tf_roll = 0.0, _tf_pitch = 0.0, _tf_yaw = -1.57;
 
         Eigen::Translation3f tl_btol(_tf_x, _tf_y, _tf_z);                // tl: translation
@@ -188,18 +223,16 @@ public:
     }
 
     bool save_map_callback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response) {
-        pcl::io::savePCDFileASCII("../catkin_ws/src/radar-inertial-odometry/test_pcd.pcd", map_);
-        std::cerr << "Saved " << map_.size () << " data points to test_pcd.pcd." << std::endl;
-
-        // for (const auto& point: map_)
-        //     std::cerr << "    " << point.x << " " << point.y << " " << point.z << std::endl;
-        
+        //pcl::io::savePCDFileASCII("../catkin_ws/src/radar-inertial-odometry/test_pcd.pcd", map_);
+        //std::cerr << "Saved " << map_.size () << " data points to test_pcd.pcd." << std::endl;
+        std::cerr << "XXXXXXXX__CALL_SAVE__XXXXXXXX" << std::endl;
         return true;
     }
     
     void velCallBack(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &velmsgs)
     {
         std::lock_guard<std::mutex> lock1(velLock);
+        // average velocity
         CulVel_value = abs(std::sqrt(velmsgs->twist.twist.linear.x * velmsgs->twist.twist.linear.x + velmsgs->twist.twist.linear.y * velmsgs->twist.twist.linear.y + velmsgs->twist.twist.linear.z * velmsgs->twist.twist.linear.z));
     }
 
@@ -281,21 +314,27 @@ public:
 
         if (pcl2msgToPcl(*input, *mmwave_radar_scan))
         {
+            std::cerr << "pcl2msgToPcl ok" << std::endl;
+            std::cerr << mmwave_radar_scan->size() << std::endl;
             for (unsigned int i = 0; i < mmwave_radar_scan->size(); ++i)
             {
                 auto point = mmwave_radar_scan->at(i);
                 auto pvel = abs(point.velocity);
+                std::cerr << "start" << i << " abs=" << abs(pvel - CulVel_value) << std::endl;
                 if (abs(pvel - CulVel_value) < VelThreshold)
                 {
+                    std::cerr << "www" << std::endl;
                     p.x = point.x;
                     p.y = point.y;
                     p.z = point.z;
                     p.intensity = point.velocity;
+                    std::cerr << double(p.x)<< std::endl;
                     // minmax
                     r = sqrt(pow(p.x, 2.0) + pow(p.y, 2.0));
                     if (min_scan_range_ < r && r < max_scan_range_ && p.z > -4)
                     {
                         scan.push_back(p);
+                        std::cerr << "pushed" << std::endl;
                     }
                     //mmwave_radar_remain->push_back(point);
                 }
@@ -310,6 +349,9 @@ public:
             pcl::transformPointCloud(*scan_ptr, *transformed_scan_ptr, tf_btol_);
             map_ += *transformed_scan_ptr;
             initial_scan_loaded = 1;
+            //std::cerr << "*transformed_scan_ptr\n" << *transformed_scan_ptr << std::endl;
+            //pcl::io::savePCDFileASCII ("../catkin_ws/src/radar-inertial-odometry/pcd_files/scan_init.pcd", *transformed_scan_ptr);
+            //std::cerr << "XXXXXXXX__scan init saved__XXXXXXXX" << std::endl;
         }
 
         voxel_grid_filter_.setInputCloud(scan_ptr);
@@ -332,7 +374,6 @@ public:
         Eigen::AngleAxisf init_rotation_z(current_pose_.yaw, Eigen::Vector3f::UnitZ());
 
         // Eigen::Matrix4f init_guess =
-        //     (init_translation * init_rotation_z * init_rotation_y * init_rotation_x).matrix() * tf_btol_;
         //     (init_translation * init_rotation_z * init_rotation_y * init_rotation_x).matrix() * tf_btol_;
 
         pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
@@ -414,12 +455,6 @@ public:
         tfs.header.frame_id = "map";
         tfs.header.stamp = timeLaserInfoStamp;
         tfs.child_frame_id = "radar"; 
-
-        // tf2_ros::Buffer tfBuffer;    
-        // tf2_ros::TransformListener tfListener(tfBuffer);
-
-        // while(!tfBuffer.canTransform(tfs.child_frame_id, ros::Time(), ros::Duration(1.0)));
-
         tfs.transform.translation.x = current_pose_.x;
         tfs.transform.translation.y = current_pose_.y;
         tfs.transform.translation.z = current_pose_.z;
