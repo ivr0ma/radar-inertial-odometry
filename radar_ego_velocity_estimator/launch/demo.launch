@@ -2,7 +2,7 @@
 
 <launch>
 
-    <arg name="mode"/>
+    <arg name="mode" default="ros"/>
     <arg name="do_plot" default="True"/>
     <arg name="config" default="params_demo_dataset"/>
     <arg name="calibration" default="$(find radar_ego_velocity_estimator)/config/calib_rio"/>
