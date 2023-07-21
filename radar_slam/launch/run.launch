@@ -13,7 +13,7 @@
     <arg name="use_odr" default="False"/>
 
     <node name="radar_ego_velocity_estimator" pkg="radar_ego_velocity_estimator" type="radar_ego_velocity_estimation_ros_node"
-          output="screen" launch-prefix="bash -c 'sleep 1; $0 $@' ">
+          output="screen">
         <rosparam file="$(find radar_ego_velocity_estimator)/config/$(arg config).yaml" command="load"/>
         <rosparam file="$(arg calibration).yaml" command="load" ns=""/>
         <param name="run_without_trigger" value="$(arg run_without_trigger)" type="bool"/>

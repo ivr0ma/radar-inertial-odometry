@@ -81,40 +81,6 @@ public:
     pcl::PointCloud<pcl::PointXYZI> map_;
     pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_filter_;
 
-
-
-    // template <typename PointSource, typename PointTarget, typename Scalar>
-    // inline void
-    // pcl::Registration<PointSource, PointTarget, Scalar>::align(PointCloudSource& output,
-    //                                                     const Matrix4& guess)
-    // {
-    //     PointCloudSourceConstPtr input_org;
-    //     PointCloudSourcePtr input_replaced(new PointCloudSource);
-
-    //     input_org = getInputSource();
-    //     transformPointCloud(*input_org, *input_replaced, guess);
-
-    //     setInputSource(input_replaced);
-    //     Registration<PointSource, PointTarget>::align(output);
-
-    //     final_transformation_ = final_transformation_ * guess;
-
-    //     // Re-orthogonalization of Rotation Matrix
-    //     // "3D rotations : parameter computation and Lie-Algebra based optimization", 4.5.
-    //     Eigen::JacobiSVD<Eigen::Matrix3f> svd(final_transformation_.block<3, 3>(0, 0),
-    //     Eigen::ComputeFullU | Eigen::ComputeFullV);
-    //     const Eigen::Matrix3f& U = svd.matrixU();
-    //     const Eigen::Matrix3f& V = svd.matrixV();
-    //     Eigen::Matrix3f S = Eigen::Matrix3f::Identity();
-    //     S(2, 2) = (U * V).determinant();
-    //     final_transformation_.block<3, 3>(0, 0) = U * S * V.transpose();
-    //     final_transformation_.block<1, 3>(3, 0).setZero();
-    //     final_transformation_(3, 3) = 1.0f;
-
-    //     setInputSource(input_org);
-    // }
-
-
     pcl::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI> ndt;
 
     int max_iter_;     // Maximum iterations
@@ -162,6 +128,7 @@ public:
 
     // std::mutex init_lock;
     bool imu_received_;
+    bool vel_received_;
     sensor_msgs::Imu imu_data_;
     std::mutex velLock;
     std::deque<geometry_msgs::TwistWithCovarianceStamped> velQue;
@@ -218,6 +185,7 @@ public:
         ndt.setMaximumIterations(max_iter_);
         is_first_map_ = true;
         imu_received_ = false;
+        vel_received_ = false;
 
         pubPath = nh_.advertise<nav_msgs::Path>("mapping/path", 1);
     }
@@ -234,6 +202,8 @@ public:
         std::lock_guard<std::mutex> lock1(velLock);
         // average velocity
         CulVel_value = abs(std::sqrt(velmsgs->twist.twist.linear.x * velmsgs->twist.twist.linear.x + velmsgs->twist.twist.linear.y * velmsgs->twist.twist.linear.y + velmsgs->twist.twist.linear.z * velmsgs->twist.twist.linear.z));
+        //std::cerr << "    rec vel=" << CulVel_value << std::endl;
+        vel_received_ = true;
     }
 
     bool pcl2msgToPcl(const sensor_msgs::PointCloud2 &pcl_msg, pcl::PointCloud<mmWaveCloudType> &scan)
@@ -291,10 +261,17 @@ public:
             return;
         }
 
-        //ROS_WARN("velocity is %f", CulVel_value);
+        if (!vel_received_)
+        {
+            ROS_WARN("Waiting for vel data...\n");
+            return;
+        }
+
+        //std::cerr << "data recieved" << std::endl;
+
+        ROS_INFO("velocity is %f", CulVel_value);
         auto mmwave_radar_scan(new pcl::PointCloud<mmWaveCloudType>);
         auto mmwave_radar_remain(new pcl::PointCloud<mmWaveCloudType>);
-
 
         pcl::PointCloud<pcl::PointXYZI> tmp, scan;
         pcl::PointCloud<pcl::PointXYZI>::Ptr filtered_scan_ptr(new pcl::PointCloud<pcl::PointXYZI>());
@@ -314,27 +291,22 @@ public:
 
         if (pcl2msgToPcl(*input, *mmwave_radar_scan))
         {
-            std::cerr << "pcl2msgToPcl ok" << std::endl;
-            std::cerr << mmwave_radar_scan->size() << std::endl;
             for (unsigned int i = 0; i < mmwave_radar_scan->size(); ++i)
             {
                 auto point = mmwave_radar_scan->at(i);
                 auto pvel = abs(point.velocity);
-                std::cerr << "start" << i << " abs=" << abs(pvel - CulVel_value) << std::endl;
+                //std::cerr << "start" << i << " abs=" << abs(pvel - CulVel_value) << std::endl;
                 if (abs(pvel - CulVel_value) < VelThreshold)
                 {
-                    std::cerr << "www" << std::endl;
                     p.x = point.x;
                     p.y = point.y;
                     p.z = point.z;
                     p.intensity = point.velocity;
-                    std::cerr << double(p.x)<< std::endl;
                     // minmax
                     r = sqrt(pow(p.x, 2.0) + pow(p.y, 2.0));
                     if (min_scan_range_ < r && r < max_scan_range_ && p.z > -4)
                     {
                         scan.push_back(p);
-                        std::cerr << "pushed" << std::endl;
                     }
                     //mmwave_radar_remain->push_back(point);
                 }
@@ -350,48 +322,17 @@ public:
             map_ += *transformed_scan_ptr;
             initial_scan_loaded = 1;
             //std::cerr << "*transformed_scan_ptr\n" << *transformed_scan_ptr << std::endl;
-            //pcl::io::savePCDFileASCII ("../catkin_ws/src/radar-inertial-odometry/pcd_files/scan_init.pcd", *transformed_scan_ptr);
-            //std::cerr << "XXXXXXXX__scan init saved__XXXXXXXX" << std::endl;
+            pcl::io::savePCDFileASCII ("/home/radar/ws/map_init.pcd", map_);
+            std::cerr << "XXXXXXXX__map init saved__XXXXXXXX" << std::endl;
         }
 
-        voxel_grid_filter_.setInputCloud(scan_ptr);
-        voxel_grid_filter_.filter(*filtered_scan_ptr);
-        ndt.setInputSource(filtered_scan_ptr); 
+        //voxel_grid_filter_.setInputCloud(scan_ptr);
+        //voxel_grid_filter_.filter(*filtered_scan_ptr);
+        //ndt.setInputSource(filtered_scan_ptr); 
 
         pcl::PointCloud<pcl::PointXYZI>::Ptr map_ptr(new pcl::PointCloud<pcl::PointXYZI>(map_));
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZI>(map_));
         map_ptr->reserve(1000);
-        
-        if (is_first_map_ == true)
-        {
-            ndt.setInputTarget(map_ptr); 
-            is_first_map_ = false;
-        }
-
-        Eigen::Translation3f init_translation(current_pose_.x, current_pose_.y, current_pose_.z);
-        Eigen::AngleAxisf init_rotation_x(current_pose_.roll, Eigen::Vector3f::UnitX());
-        Eigen::AngleAxisf init_rotation_y(current_pose_.pitch, Eigen::Vector3f::UnitY());
-        Eigen::AngleAxisf init_rotation_z(current_pose_.yaw, Eigen::Vector3f::UnitZ());
-
-        // Eigen::Matrix4f init_guess =
-        //     (init_translation * init_rotation_z * init_rotation_y * init_rotation_x).matrix() * tf_btol_;
-
-        pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
-
-        double roll_i, pitch_i, yaw_i;
-        tf::Quaternion qua_i(imu_data_.orientation.x, imu_data_.orientation.y, imu_data_.orientation.z, imu_data_.orientation.w);
-        tf::Matrix3x3(qua_i).getRPY(roll_i, pitch_i, yaw_i);
-        Eigen::AngleAxisf roll_angle(roll_i, Eigen::Vector3f::UnitX());
-        Eigen::AngleAxisf pitch_angle(pitch_i, Eigen::Vector3f::UnitY());
-        Eigen::AngleAxisf yaw_angle(yaw_i, Eigen::Vector3f::UnitZ());
-        init_guess = (init_translation * init_rotation_z * init_rotation_y * init_rotation_x).matrix() * tf_btol_;
-
-        // Eigen::Quaternionf imu_orientation(yaw_angle * pitch_angle * roll_angle);
-
-        ndt.align(*output_cloud, init_guess);
-        t_localizer = ndt.getFinalTransformation();
-        // double transform_probability = ndt.getTransformationProbability(); 
-        // ROS_WARN("transform_probability is %f", transform_probability);
 
         t_base_link = t_localizer * tf_ltob_;
 
@@ -417,7 +358,7 @@ public:
         br_.sendTransform(tf::StampedTransform(transform, timeLaserInfoStamp, map_frame_, robot_frame_));
 
         double shift = sqrt(pow(current_pose_.x - previous_pose_.x, 2.0) + pow(current_pose_.y - previous_pose_.y, 2.0));
-        if (shift >= min_add_scan_shift_)
+        if (true)
         {
             map_ += *transformed_scan_ptr;
             previous_pose_.x = current_pose_.x;
@@ -426,7 +367,7 @@ public:
             previous_pose_.roll = current_pose_.roll;
             previous_pose_.pitch = current_pose_.pitch;
             previous_pose_.yaw = current_pose_.yaw;
-            ndt.setInputTarget(map_ptr);
+            //ndt.setInputTarget(map_ptr);
 
             sensor_msgs::PointCloud2::Ptr map_msg_ptr(new sensor_msgs::PointCloud2);
 
