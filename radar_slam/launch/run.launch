@@ -33,11 +33,11 @@
 
     <node pkg="showpath" type="showpath_gps" name="showpath_gps" output="screen">
         <param name="gps_topic" type="string" value="/dji_osdk_ros/rtk_position" />
-        <!--/dji_osdk_ros/vo_position       15897 msgs    : dji_osdk_ros/VOPosition -->
+        
         <param name="VO_topic" type="string" value="/dji_osdk_ros/VOPosition1" /> 
         <param name="attitude_topic" type="string" value="/dji_osdk_ros/attitude" />
         <param name="healthy_topic" type="string" value="/dji_osdk_ros/gps_health" />
-        <!-- daquan 2.38988   xiaoquan 2.268928 -->
+        
         <param name="init_yaw_d" type="double" value="0" />
     </node> 
 

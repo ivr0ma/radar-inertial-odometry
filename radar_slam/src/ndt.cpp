@@ -22,6 +22,7 @@
 #include <pcl/point_cloud.h>
 
 #include <pcl/registration/ndt.h>
+#include <pcl/registration/icp.h>
 
 #include <time.h> 
 #include <eigen3/Eigen/Dense>
@@ -82,6 +83,7 @@ public:
     pcl::VoxelGrid<pcl::PointXYZI> voxel_grid_filter_;
 
     pcl::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI> ndt;
+    pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> icp;
 
     int max_iter_;     // Maximum iterations
     double ndt_res_;   // Resolution
@@ -149,7 +151,7 @@ public:
         nh_.param("max_iter", max_iter_, 50);   
         nh_.param("step_size", step_size_, 0.1);  
         nh_.param("ndt_res", ndt_res_, 3.0);   
-        nh_.param("trans_eps", trans_eps_, 0.01); 
+        nh_.param("trans_eps", trans_eps_, 0.1); 
         nh_.param("voxel_leaf_size", voxel_leaf_size_, 3.0);
         nh_.param("min_scan_range", min_scan_range_, 2.0);
         nh_.param("max_scan_range", max_scan_range_, 200.0);
@@ -183,6 +185,12 @@ public:
         ndt.setStepSize(step_size_);
         ndt.setResolution(ndt_res_);
         ndt.setMaximumIterations(max_iter_);
+
+        icp.setMaxCorrespondenceDistance(0.5);
+        icp.setTransformationEpsilon(0.1);
+        icp.setEuclideanFitnessEpsilon(0.1);
+        icp.setMaximumIterations(50);
+
         is_first_map_ = true;
         imu_received_ = false;
         vel_received_ = false;
@@ -315,6 +323,8 @@ public:
 
         pcl::PointCloud<pcl::PointXYZI>::Ptr scan_ptr(new pcl::PointCloud<pcl::PointXYZI>(scan));
 
+        vector<int>index;
+
         // Add initial point cloud to velodyne_map
         if (initial_scan_loaded == 0)
         {
@@ -322,17 +332,82 @@ public:
             map_ += *transformed_scan_ptr;
             initial_scan_loaded = 1;
             //std::cerr << "*transformed_scan_ptr\n" << *transformed_scan_ptr << std::endl;
-            pcl::io::savePCDFileASCII ("/home/radar/ws/map_init.pcd", map_);
+            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/map_init.pcd", map_);
             std::cerr << "XXXXXXXX__map init saved__XXXXXXXX" << std::endl;
+
+            // voxel_grid_filter_.setInputCloud(scan_ptr);
+            // voxel_grid_filter_.filter(*filtered_scan_ptr);
+            
+            // std::cerr << *scan_ptr << std::endl;
+            // scan_ptr->width    = scan_ptr->width * scan_ptr->height;
+            // scan_ptr->height   = 1;
+            // scan_ptr->is_dense = 0;
+            // std::cerr << "++++" << *scan_ptr << std::endl;
+            // scan_ptr->points.resize (scan_ptr->width * scan_ptr->height);
+            // pcl::removeNaNFromPointCloud(*scan_ptr, *scan_ptr, index);
+            // scan_ptr->is_dense = 0;
+            // std::cerr << *scan_ptr << std::endl;
+
+            
+
+            //icp.setInputSource(scan_ptr); 
+            //ndt.setInputSource(scan_ptr); 
+            //pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/input.pcd", *scan_ptr);
+            //std::cerr << "XXXXXXXX__input saved__XXXXXXXX" << std::endl;
         }
 
         //voxel_grid_filter_.setInputCloud(scan_ptr);
         //voxel_grid_filter_.filter(*filtered_scan_ptr);
         //ndt.setInputSource(filtered_scan_ptr); 
+        icp.setInputSource(scan_ptr);
 
         pcl::PointCloud<pcl::PointXYZI>::Ptr map_ptr(new pcl::PointCloud<pcl::PointXYZI>(map_));
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZI>(map_));
         map_ptr->reserve(1000);
+
+        if (is_first_map_ == true)
+        {
+            // map_ptr->width    = map_ptr->width * map_ptr->height;
+            // map_ptr->height   = 1;
+            // map_ptr->is_dense = 0;
+            // map_ptr->points.resize (map_ptr->width * map_ptr->height);
+            // pcl::removeNaNFromPointCloud(*map_ptr, *map_ptr, index);
+            // map_ptr->is_dense = 0;
+
+            icp.setInputTarget(map_ptr); 
+            //ndt.setInputTarget(map_ptr);
+            is_first_map_ = false;
+            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/target.pcd", *map_ptr);
+            std::cerr << "XXXXXXXX__target saved__XXXXXXXX" << std::endl;
+        }
+
+        Eigen::Translation3f init_translation(current_pose_.x, current_pose_.y, current_pose_.z);
+        Eigen::AngleAxisf init_rotation_x(current_pose_.roll, Eigen::Vector3f::UnitX());
+        Eigen::AngleAxisf init_rotation_y(current_pose_.pitch, Eigen::Vector3f::UnitY());
+        Eigen::AngleAxisf init_rotation_z(current_pose_.yaw, Eigen::Vector3f::UnitZ());
+
+        pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+
+        double roll_i, pitch_i, yaw_i;
+        tf::Quaternion qua_i(imu_data_.orientation.x, imu_data_.orientation.y, imu_data_.orientation.z, imu_data_.orientation.w);
+        tf::Matrix3x3(qua_i).getRPY(roll_i, pitch_i, yaw_i);
+        Eigen::AngleAxisf roll_angle(roll_i, Eigen::Vector3f::UnitX());
+        Eigen::AngleAxisf pitch_angle(pitch_i, Eigen::Vector3f::UnitY());
+        Eigen::AngleAxisf yaw_angle(yaw_i, Eigen::Vector3f::UnitZ());
+        init_guess = (init_translation * init_rotation_z * init_rotation_y * init_rotation_x).matrix() * tf_btol_;
+        //init_guess = (init_translation * init_rotation_z * init_rotation_y * init_rotation_x).matrix();
+
+        // if (is_first_map_ == true)
+        // {
+        //     icp.align(*output_cloud); 
+        //     pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/output.pcd", map_);
+        //     std::cerr << "XXXXXXXX__output saved__XXXXXXXX" << std::endl;
+        //     is_first_map_ = false;
+        // }
+
+        icp.align(*output_cloud); 
+        t_localizer = ndt.getFinalTransformation();
+        
 
         t_base_link = t_localizer * tf_ltob_;
 
@@ -368,6 +443,7 @@ public:
             previous_pose_.pitch = current_pose_.pitch;
             previous_pose_.yaw = current_pose_.yaw;
             //ndt.setInputTarget(map_ptr);
+            icp.setInputTarget(map_ptr);
 
             sensor_msgs::PointCloud2::Ptr map_msg_ptr(new sensor_msgs::PointCloud2);
 
