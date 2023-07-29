@@ -69,8 +69,6 @@ public:
     ros::Subscriber points_sub_;
     ros::Subscriber imu_sub_;
 
-    ros::ServiceServer save_map_service;
-
     ros::Subscriber sub_twist_;
     bool imu_init_flag = false;
 
@@ -148,7 +146,6 @@ public:
 
         ndt_map_pub_ = nh_.advertise<sensor_msgs::PointCloud2>("/ndt_map", 1);
         current_pose_pub_ = nh_.advertise<nav_msgs::Odometry>("/current_pose", 1);
-        save_map_service = nh_.advertiseService("/save_map", &NDT::save_map_callback, this);
         
         // Default values
         nh_.param("max_iter", max_iter_, 50);   
@@ -184,20 +181,10 @@ public:
 
         voxel_grid_filter_.setLeafSize(voxel_leaf_size_, voxel_leaf_size_, voxel_leaf_size_);
 
-        // ndt.setTransformationEpsilon(trans_eps_); 
-        // ndt.setStepSize(step_size_);
-        // ndt.setResolution(ndt_res_);
-        // ndt.setMaximumIterations(max_iter_);
-
-        ndt.setTransformationEpsilon(0.1); 
-        ndt.setStepSize(0.1);
-        ndt.setResolution(3.0);
-        ndt.setMaximumIterations(30);
-
-        //icp.setMaxCorrespondenceDistance(0.5);
-        icp.setTransformationEpsilon(0.1);
-        //icp.setEuclideanFitnessEpsilon(0.1);
-        icp.setMaximumIterations(50);
+        ndt.setTransformationEpsilon(trans_eps_); 
+        ndt.setStepSize(step_size_);
+        ndt.setResolution(ndt_res_);
+        ndt.setMaximumIterations(max_iter_);
 
         is_first_map_ = true;
         imu_received_ = false;
@@ -205,20 +192,12 @@ public:
 
         pubPath = nh_.advertise<nav_msgs::Path>("mapping/path", 1);
     }
-
-    bool save_map_callback(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response) {
-        //pcl::io::savePCDFileASCII("../catkin_ws/src/radar-inertial-odometry/test_pcd.pcd", map_);
-        //std::cerr << "Saved " << map_.size () << " data points to test_pcd.pcd." << std::endl;
-        std::cerr << "XXXXXXXX__CALL_SAVE__XXXXXXXX" << std::endl;
-        return true;
-    }
     
     void velCallBack(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr &velmsgs)
     {
         std::lock_guard<std::mutex> lock1(velLock);
         // average velocity
         CulVel_value = abs(std::sqrt(velmsgs->twist.twist.linear.x * velmsgs->twist.twist.linear.x + velmsgs->twist.twist.linear.y * velmsgs->twist.twist.linear.y + velmsgs->twist.twist.linear.z * velmsgs->twist.twist.linear.z));
-        //std::cerr << "    rec vel=" << CulVel_value << std::endl;
         vel_received_ = true;
     }
 
@@ -283,8 +262,6 @@ public:
             return;
         }
 
-        //std::cerr << "data recieved" << std::endl;
-
         ROS_INFO("velocity is %f", CulVel_value);
         auto mmwave_radar_scan(new pcl::PointCloud<mmWaveCloudType>);
         auto mmwave_radar_remain(new pcl::PointCloud<mmWaveCloudType>);
@@ -311,7 +288,7 @@ public:
             {
                 auto point = mmwave_radar_scan->at(i);
                 auto pvel = abs(point.velocity);
-                //std::cerr << "start" << i << " abs=" << abs(pvel - CulVel_value) << std::endl;
+                
                 if (abs(pvel - CulVel_value) < VelThreshold)
                 {
                     p.x = point.x;
@@ -331,43 +308,17 @@ public:
 
         pcl::PointCloud<pcl::PointXYZI>::Ptr scan_ptr(new pcl::PointCloud<pcl::PointXYZI>(scan));
 
-        vector<int>index;
-
         // Add initial point cloud to velodyne_map
         if (initial_scan_loaded == 0)
         {
             pcl::transformPointCloud(*scan_ptr, *transformed_scan_ptr, tf_btol_);
             map_ += *transformed_scan_ptr;
             initial_scan_loaded = 1;
-            //std::cerr << "*transformed_scan_ptr\n" << *transformed_scan_ptr << std::endl;
-            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/map_init.pcd", map_);
-            std::cerr << "XXXXXXXX__map init saved__XXXXXXXX" << std::endl;
-
-            // voxel_grid_filter_.setInputCloud(scan_ptr);
-            // voxel_grid_filter_.filter(*filtered_scan_ptr);
-            
-            // std::cerr << *scan_ptr << std::endl;
-            // scan_ptr->width    = scan_ptr->width * scan_ptr->height;
-            // scan_ptr->height   = 1;
-            // scan_ptr->is_dense = 0;
-            // std::cerr << "++++" << *scan_ptr << std::endl;
-            // scan_ptr->points.resize (scan_ptr->width * scan_ptr->height);
-            // pcl::removeNaNFromPointCloud(*scan_ptr, *scan_ptr, index);
-            // scan_ptr->is_dense = 0;
-            // std::cerr << *scan_ptr << std::endl;
-
-            
-
-            //icp.setInputSource(scan_ptr); 
-            //ndt.setInputSource(scan_ptr); 
-            //pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/input.pcd", *scan_ptr);
-            //std::cerr << "XXXXXXXX__input saved__XXXXXXXX" << std::endl;
         }
 
         voxel_grid_filter_.setInputCloud(scan_ptr);
         voxel_grid_filter_.filter(*filtered_scan_ptr);
         ndt.setInputSource(filtered_scan_ptr); 
-        //icp.setInputSource(scan_ptr);
 
         pcl::PointCloud<pcl::PointXYZI>::Ptr map_ptr(new pcl::PointCloud<pcl::PointXYZI>(map_));
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZI>(map_));
@@ -375,23 +326,8 @@ public:
 
         if (is_first_map_ == true)
         {
-            // map_ptr->width    = map_ptr->width * map_ptr->height;
-            // map_ptr->height   = 1;
-            // map_ptr->is_dense = 0;
-            // map_ptr->points.resize (map_ptr->width * map_ptr->height);
-            // pcl::removeNaNFromPointCloud(*map_ptr, *map_ptr, index);
-            // map_ptr->is_dense = 0;
-
-            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/input.pcd", *scan_ptr);
-            std::cerr << "XXXXXXXX__input saved__XXXXXXXX" << std::endl;
-            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/input_filtered.pcd", *filtered_scan_ptr);
-            std::cerr << "XXXXXXXX__input_filtered saved__XXXXXXXX" << std::endl;
-
-            //icp.setInputTarget(map_ptr); 
             ndt.setInputTarget(map_ptr);
-            //is_first_map_ = false;
-            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/target.pcd", *map_ptr);
-            std::cerr << "XXXXXXXX__target saved__XXXXXXXX" << std::endl;
+            is_first_map_ = false;
         }
 
         Eigen::Translation3f init_translation(current_pose_.x, current_pose_.y, current_pose_.z);
@@ -408,29 +344,10 @@ public:
         Eigen::AngleAxisf pitch_angle(pitch_i, Eigen::Vector3f::UnitY());
         Eigen::AngleAxisf yaw_angle(yaw_i, Eigen::Vector3f::UnitZ());
         init_guess = (init_translation * init_rotation_z * init_rotation_y * init_rotation_x).matrix() * tf_btol_;
-        //init_guess = (init_translation * init_rotation_z * init_rotation_y * init_rotation_x).matrix();
 
-        // if (is_first_map_ == true)
-        // {
-        //     icp.align(*output_cloud); 
-        //     pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/output.pcd", map_);
-        //     std::cerr << "XXXXXXXX__output saved__XXXXXXXX" << std::endl;
-        //     is_first_map_ = false;
-        // }
-
-        //icp.align(*output_cloud); 
         ndt.align(*output_cloud); 
 
-        if (is_first_map_ == true)
-        {
-            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/output.pcd", map_);
-            std::cerr << "XXXXXXXX__output saved__XXXXXXXX" << std::endl;
-            is_first_map_ = false;
-        }
-
         t_localizer = ndt.getFinalTransformation();
-        
-
         t_base_link = t_localizer * tf_ltob_;
 
         pcl::transformPointCloud(*scan_ptr, *transformed_scan_ptr, t_localizer);
@@ -465,7 +382,6 @@ public:
             previous_pose_.pitch = current_pose_.pitch;
             previous_pose_.yaw = current_pose_.yaw;
             ndt.setInputTarget(map_ptr);
-            //icp.setInputTarget(map_ptr);
 
             sensor_msgs::PointCloud2::Ptr map_msg_ptr(new sensor_msgs::PointCloud2);
 
@@ -523,7 +439,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "radar_slam");
     NDT NDT;
     ROS_INFO("\033[1;32m----> NDT Started.\033[0m");
-    ros::MultiThreadedSpinner spinner(1);
+    ros::MultiThreadedSpinner spinner(4);
     spinner.spin();
     return 0;
 }
