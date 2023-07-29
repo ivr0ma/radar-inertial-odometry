@@ -38,6 +38,9 @@
 #include <cmath>
 #include <pcl/filters/radius_outlier_removal.h>
 
+#include <pcl/kdtree/kdtree_flann.h>
+#include <pcl/kdtree/impl/kdtree_flann.hpp>
+
 typedef pcl::PointXYZI PointType;
 using namespace std;
 
@@ -181,14 +184,19 @@ public:
 
         voxel_grid_filter_.setLeafSize(voxel_leaf_size_, voxel_leaf_size_, voxel_leaf_size_);
 
-        ndt.setTransformationEpsilon(trans_eps_); 
-        ndt.setStepSize(step_size_);
-        ndt.setResolution(ndt_res_);
-        ndt.setMaximumIterations(max_iter_);
+        // ndt.setTransformationEpsilon(trans_eps_); 
+        // ndt.setStepSize(step_size_);
+        // ndt.setResolution(ndt_res_);
+        // ndt.setMaximumIterations(max_iter_);
 
-        icp.setMaxCorrespondenceDistance(0.5);
+        ndt.setTransformationEpsilon(0.1); 
+        ndt.setStepSize(0.1);
+        ndt.setResolution(3.0);
+        ndt.setMaximumIterations(30);
+
+        //icp.setMaxCorrespondenceDistance(0.5);
         icp.setTransformationEpsilon(0.1);
-        icp.setEuclideanFitnessEpsilon(0.1);
+        //icp.setEuclideanFitnessEpsilon(0.1);
         icp.setMaximumIterations(50);
 
         is_first_map_ = true;
@@ -356,10 +364,10 @@ public:
             //std::cerr << "XXXXXXXX__input saved__XXXXXXXX" << std::endl;
         }
 
-        //voxel_grid_filter_.setInputCloud(scan_ptr);
-        //voxel_grid_filter_.filter(*filtered_scan_ptr);
-        //ndt.setInputSource(filtered_scan_ptr); 
-        icp.setInputSource(scan_ptr);
+        voxel_grid_filter_.setInputCloud(scan_ptr);
+        voxel_grid_filter_.filter(*filtered_scan_ptr);
+        ndt.setInputSource(filtered_scan_ptr); 
+        //icp.setInputSource(scan_ptr);
 
         pcl::PointCloud<pcl::PointXYZI>::Ptr map_ptr(new pcl::PointCloud<pcl::PointXYZI>(map_));
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered(new pcl::PointCloud<pcl::PointXYZI>(map_));
@@ -374,9 +382,14 @@ public:
             // pcl::removeNaNFromPointCloud(*map_ptr, *map_ptr, index);
             // map_ptr->is_dense = 0;
 
-            icp.setInputTarget(map_ptr); 
-            //ndt.setInputTarget(map_ptr);
-            is_first_map_ = false;
+            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/input.pcd", *scan_ptr);
+            std::cerr << "XXXXXXXX__input saved__XXXXXXXX" << std::endl;
+            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/input_filtered.pcd", *filtered_scan_ptr);
+            std::cerr << "XXXXXXXX__input_filtered saved__XXXXXXXX" << std::endl;
+
+            //icp.setInputTarget(map_ptr); 
+            ndt.setInputTarget(map_ptr);
+            //is_first_map_ = false;
             pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/target.pcd", *map_ptr);
             std::cerr << "XXXXXXXX__target saved__XXXXXXXX" << std::endl;
         }
@@ -405,7 +418,16 @@ public:
         //     is_first_map_ = false;
         // }
 
-        icp.align(*output_cloud); 
+        //icp.align(*output_cloud); 
+        ndt.align(*output_cloud); 
+
+        if (is_first_map_ == true)
+        {
+            pcl::io::savePCDFileASCII ("/home/radar/ws/pcd-files/output.pcd", map_);
+            std::cerr << "XXXXXXXX__output saved__XXXXXXXX" << std::endl;
+            is_first_map_ = false;
+        }
+
         t_localizer = ndt.getFinalTransformation();
         
 
@@ -433,7 +455,7 @@ public:
         br_.sendTransform(tf::StampedTransform(transform, timeLaserInfoStamp, map_frame_, robot_frame_));
 
         double shift = sqrt(pow(current_pose_.x - previous_pose_.x, 2.0) + pow(current_pose_.y - previous_pose_.y, 2.0));
-        if (true)
+        if (shift >= min_add_scan_shift_)
         {
             map_ += *transformed_scan_ptr;
             previous_pose_.x = current_pose_.x;
@@ -442,8 +464,8 @@ public:
             previous_pose_.roll = current_pose_.roll;
             previous_pose_.pitch = current_pose_.pitch;
             previous_pose_.yaw = current_pose_.yaw;
-            //ndt.setInputTarget(map_ptr);
-            icp.setInputTarget(map_ptr);
+            ndt.setInputTarget(map_ptr);
+            //icp.setInputTarget(map_ptr);
 
             sensor_msgs::PointCloud2::Ptr map_msg_ptr(new sensor_msgs::PointCloud2);
 
@@ -501,7 +523,7 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "radar_slam");
     NDT NDT;
     ROS_INFO("\033[1;32m----> NDT Started.\033[0m");
-    ros::MultiThreadedSpinner spinner(4);
+    ros::MultiThreadedSpinner spinner(1);
     spinner.spin();
     return 0;
 }
